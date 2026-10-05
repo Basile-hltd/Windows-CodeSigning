@@ -7,6 +7,8 @@ Petit projet pour tester la signature de code Windows avec **Microsoft Azure Art
 | Fichier | Rôle |
 |---|---|
 | `hello.c` | Programme de test : affiche une simple boîte de dialogue (`MessageBox`) |
+| `compileAndSign.ps1` | Compile un fichier C avec GCC puis le signe avec Azure Artifact Signing |
+| `metadata.json` | Configuration de la signature (endpoint, compte, profil de certificat) |
 | `docs/images/` | Captures d'écran des tests |
 
 Les `.exe` ne sont pas versionnés (`.gitignore`). Ils sont publiés dans les [Releases](../../releases) du dépôt.
@@ -48,6 +50,58 @@ Après avoir choisi de conserver le fichier, le téléchargement est tout de mê
 
 Ces trois éléments s'additionnent : SmartScreen est un avertissement que l'utilisateur peut contourner, mais l'analyse antivirus, elle, bloque purement et simplement le fichier.
 
-## Test 2 : exécutable signé (à venir)
+## Signature avec Azure Artifact Signing
 
-Même programme, signé avec Azure Artifact Signing, publié dans une release puis téléchargé de la même façon, pour comparer le comportement.
+Prérequis (installés en local, hors dépôt) :
+
+- `signtool.exe` du Windows SDK ;
+- le plugin `Azure.CodeSigning.Dlib` (paquet NuGet `Microsoft.ArtifactSigning.Client`, extrait dans `tools/`, ignoré par git) ;
+- le **runtime .NET 8** : sans lui, `signtool` échoue sans message d'erreur ;
+- Azure CLI, avec `az login` fait sur un compte ayant le rôle *Artifact Signing Certificate Profile Signer* ;
+- un compte et un profil de certificat Artifact Signing validés, renseignés dans `metadata.json`.
+
+Compiler et signer :
+
+```powershell
+.\compileAndSign.ps1 hello.c -o HelloSigned.exe
+```
+
+Le script compile, signe (avec horodatage Microsoft), puis vérifie la signature avec `signtool verify`.
+
+Le certificat est à courte durée de vie (quelques jours). La signature reste valide après son expiration grâce à l'horodatage.
+
+## Test 2 : exécutable signé (`HelloSigned.exe`)
+
+Même programme, signé, publié dans une release GitHub puis téléchargé avec Edge de la même façon.
+
+### Ce qui se passe
+
+**1. Edge avertit toujours que le fichier est rare.**
+Le message « *HelloSigned.exe isn't commonly downloaded* » s'affiche encore : il faut passer par le menu `...` et choisir *Keep* pour conserver le fichier.
+
+![Avertissement au téléchargement (signé)](docs/images/04-signed-download-warning.png)
+
+**2. SmartScreen affiche maintenant l'éditeur.**
+SmartScreen dit toujours qu'il ne peut pas vérifier le fichier car il est peu téléchargé, mais le champ *Publisher* n'est plus « Unknown » : il affiche l'identité validée du certificat (Läng & Hiltpold Software SNC, Genève, CH).
+
+![Dialogue SmartScreen (signé)](docs/images/05-signed-smartscreen-dialog.png)
+
+**3. Plus de « Virus detected ».**
+Une fois conservé via *Keep anyway*, le fichier est bien téléchargé et **se lance sans problème**, contrairement à la version non signée qui était bloquée par Defender.
+
+## Comparaison
+
+| | Non signé | Signé |
+|---|---|---|
+| Avertissement « isn't commonly downloaded » | Oui | Oui |
+| Éditeur affiché par SmartScreen | Unknown | Identité validée du certificat |
+| Téléchargement | Bloqué : « Virus detected » | Possible après *Keep* / *Keep anyway* |
+| Lancement | Impossible (fichier non obtenu) | Sans problème |
+
+## Conclusion
+
+La signature ne supprime pas tout de suite l'avertissement SmartScreen : celui-ci repose aussi sur la **réputation** du fichier, qui se construit avec le nombre de téléchargements. En revanche elle change l'essentiel :
+
+- l'éditeur est identifié au lieu d'être « Unknown » ;
+- l'antivirus ne bloque plus le fichier comme menace ;
+- l'utilisateur peut conserver et lancer l'exécutable.
