@@ -23,7 +23,7 @@ gcc -O2 -mwindows -s hello.c -o HelloNotSign.exe
 
 ## Test 1 : exécutable non signé (`HelloNotSign.exe`)
 
-L'exe a été publié dans une release GitHub, puis téléchargé avec Microsoft Edge pour reproduire un vrai téléchargement (le fichier reçoit alors le *Mark of the Web*). Le programme n'a même pas pu être lancé : Windows bloque le fichier dès le téléchargement.
+L'exe a été publié dans une release GitHub, puis téléchargé avec Microsoft Edge pour reproduire un vrai téléchargement (le fichier reçoit alors le *Mark of the Web*). Le programme n'a même pas pu être lancé : Windows Defender le détecte comme un virus et le **supprime de l'ordinateur**.
 
 ### Ce qui se passe
 
@@ -37,8 +37,8 @@ En cliquant sur l'avertissement, Microsoft Defender SmartScreen explique qu'il n
 
 ![Dialogue SmartScreen](docs/images/02-unsigned-smartscreen-dialog.png)
 
-**3. Le téléchargement échoue : « Virus detected ».**
-Après avoir choisi de conserver le fichier, le téléchargement est tout de même refusé avec le message « *Couldn't download - Virus detected* » (un autre essai affiche simplement « *Download error* »).
+**3. Defender détecte un virus et supprime le fichier : « Virus detected ».**
+Après avoir choisi de conserver le fichier, Windows Defender l'analyse, annonce « *Couldn't download - Virus detected* » et **supprime le fichier du PC**. Le fichier n'est donc jamais disponible (un autre essai affiche simplement « *Download error* »).
 
 ![Virus detected](docs/images/03-unsigned-virus-detected.png)
 
@@ -48,7 +48,7 @@ Après avoir choisi de conserver le fichier, le téléchargement est tout de mê
 - **Aucune réputation** : SmartScreen juge un fichier par sa réputation (nombre de téléchargements, éditeur connu). Un exe tout neuf n'en a aucune, d'où « isn't commonly downloaded ».
 - **Détection antivirus** : un petit exécutable natif, non signé, inconnu et téléchargé depuis un hébergement public correspond à un profil que les heuristiques de Defender traitent comme suspect. Le message « Virus detected » est ici un **faux positif** : le code source (`hello.c`) ne fait qu'afficher une boîte de dialogue.
 
-Ces trois éléments s'additionnent : SmartScreen est un avertissement que l'utilisateur peut contourner, mais l'analyse antivirus, elle, bloque purement et simplement le fichier.
+Ces trois éléments s'additionnent : SmartScreen est un avertissement que l'utilisateur peut contourner, mais l'analyse antivirus, elle, détecte le fichier comme malveillant et le supprime.
 
 ## Signature avec Azure Artifact Signing
 
@@ -86,8 +86,8 @@ SmartScreen dit toujours qu'il ne peut pas vérifier le fichier car il est peu t
 
 ![Dialogue SmartScreen (signé)](docs/images/05-signed-smartscreen-dialog.png)
 
-**3. Plus de « Virus detected ».**
-Une fois conservé via *Keep anyway*, le fichier est bien téléchargé et **se lance sans problème**, contrairement à la version non signée qui était bloquée par Defender.
+**3. Plus de « Virus detected », et plus aucun avertissement au lancement.**
+Une fois conservé via *Keep*, le fichier reste sur le PC et **se lance sans problème : aucun écran SmartScreen, aucun message**. La version non signée, elle, était supprimée par Defender.
 
 ## Comparaison
 
@@ -95,13 +95,14 @@ Une fois conservé via *Keep anyway*, le fichier est bien téléchargé et **se 
 |---|---|---|
 | Avertissement « isn't commonly downloaded » | Oui | Oui |
 | Éditeur affiché par SmartScreen | Unknown | Identité validée du certificat |
-| Téléchargement | Bloqué : « Virus detected » | Possible après *Keep* / *Keep anyway* |
-| Lancement | Impossible (fichier non obtenu) | Sans problème |
+| Détection par Defender | « Virus detected », fichier supprimé du PC | Aucune détection |
+| Téléchargement | Impossible (fichier supprimé) | Possible après *Keep* |
+| Lancement | Impossible | Direct, sans SmartScreen ni message |
 
 ## Conclusion
 
 La signature ne supprime pas tout de suite l'avertissement SmartScreen : celui-ci repose aussi sur la **réputation** du fichier, qui se construit avec le nombre de téléchargements. En revanche elle change l'essentiel :
 
 - l'éditeur est identifié au lieu d'être « Unknown » ;
-- l'antivirus ne bloque plus le fichier comme menace ;
-- l'utilisateur peut conserver et lancer l'exécutable.
+- l'antivirus ne supprime plus le fichier comme menace ;
+- l'utilisateur peut conserver l'exécutable et le lancer directement, sans écran SmartScreen au lancement.
